@@ -26,7 +26,7 @@ METRIC_LABELS = {
 
 def metrics_table(data: dict) -> str:
     lines = ["| 메트릭 | 결과 | 목표 | 판정 |", "|---|---|---|---|"]
-    means = data.get("ragas_means") or {}
+    means = data.get("judge_means") or {}
     for key, label in METRIC_LABELS.items():
         v = means.get(key)
         target = data["targets"][key]
@@ -59,9 +59,9 @@ def per_case_table(data: dict) -> str:
         "|---|---|---|---|---|---|---|---|",
     ]
     for c in data["cases"]:
-        ragas = c.get("ragas", {})
+        scores = c.get("judge_scores", {})
 
-        def fmt(key: str, _r=ragas) -> str:
+        def fmt(key: str, _r=scores) -> str:
             v = _r.get(key)
             return f"{v:.2f}" if isinstance(v, float) else "—"
 

@@ -43,7 +43,7 @@ def _llm_classify(query: str) -> str:
     try:
         client = Groq(api_key=settings.groq_api_key)
         response = client.chat.completions.create(
-            model=settings.llm_model,
+            model=settings.fast_llm_model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=10,
             temperature=0.0,

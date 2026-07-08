@@ -1,12 +1,12 @@
 """
-통합 평가 러너 — RAGAS 4메트릭 + 결정적 루브릭.
-저지 LLM: Groq llama-3.3-70b (무료) / --judge gemini 폴백.
-임베딩: 로컬 ko-sroberta (answer_relevancy가 기본 OpenAI 임베딩을 쓰므로 반드시 오버라이드).
+통합 평가 러너 — LLM 저지 4메트릭 (RAGAS 방법론 준용, eval/judge.py) + 결정적 루브릭.
+저지 LLM: Gemini 2.5-flash 기본 (생성용 Groq와 쿼터 분리) / --judge groq 전환.
 
 사용:
     python -m eval.runner --sample 3          # 소량 스모크
     python -m eval.runner                     # 전체 30케이스
-    python -m eval.runner --judge gemini      # Gemini 저지
+    python -m eval.runner --judge groq        # Groq 저지
+    python -m eval.runner --skip-judge        # 루브릭만
 """
 from __future__ import annotations
 
@@ -16,8 +16,6 @@ import logging
 import re
 import time
 from pathlib import Path
-
-from panrye.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -100,76 +98,18 @@ def run_cases(cases: list[dict]) -> list[dict]:
     return rows
 
 
-def build_judge(judge: str):
-    from ragas.embeddings import LangchainEmbeddingsWrapper
-    from ragas.llms import LangchainLLMWrapper
+def run_judge(rows: list[dict], judge: str) -> dict:
+    from eval.judge import judge_all
 
-    settings = get_settings()
-    if judge == "gemini":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        llm = ChatGoogleGenerativeAI(
-            model=settings.gemini_model, google_api_key=settings.google_api_key, temperature=0
-        )
-    else:
-        from langchain_groq import ChatGroq
-
-        llm = ChatGroq(
-            model=settings.llm_model, api_key=settings.groq_api_key, temperature=0
-        )
-
-    from langchain_huggingface import HuggingFaceEmbeddings
-
-    emb = HuggingFaceEmbeddings(model_name=settings.embedding_model)
-    return LangchainLLMWrapper(llm), LangchainEmbeddingsWrapper(emb)
-
-
-def run_ragas(rows: list[dict], judge: str) -> dict:
-    from ragas import EvaluationDataset, RunConfig, evaluate
-    from ragas.metrics import (
-        answer_relevancy,
-        context_precision,
-        context_recall,
-        faithfulness,
-    )
-
-    llm, emb = build_judge(judge)
-    dataset = EvaluationDataset.from_list([
-        {
-            "user_input": r["user_input"],
-            "response": r["response"],
-            "retrieved_contexts": r["retrieved_contexts"],
-            "reference": r["reference"],
-        }
-        for r in rows
-    ])
-
-    result = evaluate(
-        dataset,
-        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
-        llm=llm,
-        embeddings=emb,
-        # Groq 무료 티어 rate limit 대응: 직렬 실행 + 넉넉한 타임아웃
-        run_config=RunConfig(max_workers=1, timeout=180, max_retries=8),
-    )
-
-    df = result.to_pandas()
-    per_case = df[["faithfulness", "answer_relevancy", "context_precision", "context_recall"]]
-    return {
-        "means": {k: round(float(per_case[k].mean()), 4) for k in per_case.columns},
-        "per_case": [
-            {k: (None if v != v else round(float(v), 4)) for k, v in row.items()}
-            for row in per_case.to_dict(orient="records")
-        ],
-    }
+    return judge_all(rows, judge=judge)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="판례.ai 통합 평가")
     parser.add_argument("--sample", type=int, default=None, help="케이스 수 제한")
-    parser.add_argument("--judge", choices=["groq", "gemini"], default="groq")
-    parser.add_argument("--skip-ragas", action="store_true", help="루브릭만 실행")
+    parser.add_argument("--judge", choices=["groq", "gemini"], default="gemini")
+    parser.add_argument("--skip-judge", action="store_true", help="루브릭만 실행")
     args = parser.parse_args()
 
     cases = load_testset(args.sample)
@@ -177,15 +117,15 @@ def main() -> None:
 
     rows = run_cases(cases)
 
-    ragas_result = None
-    if not args.skip_ragas:
-        ragas_result = run_ragas(rows, args.judge)
+    judge_result = None
+    if not args.skip_judge:
+        judge_result = run_judge(rows, args.judge)
         # per-case 점수를 rows에 합류 + DB 기록
         from panrye.storage.db import init_db, log_eval
 
         init_db()
-        for row, scores in zip(rows, ragas_result["per_case"], strict=True):
-            row["ragas"] = scores
+        for row, scores in zip(rows, judge_result["per_case"], strict=True):
+            row["judge_scores"] = scores
             if row.get("log_id"):
                 log_eval(
                     query_id=row["log_id"],
@@ -193,14 +133,14 @@ def main() -> None:
                     answer_relevancy=scores.get("answer_relevancy") or 0.0,
                     context_precision=scores.get("context_precision") or 0.0,
                     context_recall=scores.get("context_recall") or 0.0,
-                    eval_model=f"ragas/{args.judge}",
+                    eval_model=f"judge/{args.judge}",
                 )
 
     output = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "judge": args.judge,
         "n_cases": len(rows),
-        "ragas_means": ragas_result["means"] if ragas_result else None,
+        "judge_means": judge_result["means"] if judge_result else None,
         "targets": TARGETS,
         "rubric_summary": {
             "domain_accuracy": sum(r["rubric"]["domain_correct"] for r in rows) / len(rows),
@@ -220,8 +160,11 @@ def main() -> None:
     logger.info(f"결과 저장: {RESULTS_PATH}")
 
     print("\n=== 평가 요약 ===")
-    if ragas_result:
-        for k, v in ragas_result["means"].items():
+    if judge_result:
+        for k, v in judge_result["means"].items():
+            if v is None:
+                print(f"  — {k}: 저지 실패")
+                continue
             mark = "✅" if v >= TARGETS[k] else "❌"
             print(f"  {mark} {k}: {v:.3f} (목표 {TARGETS[k]})")
     for k, v in output["rubric_summary"].items():

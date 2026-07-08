@@ -52,7 +52,7 @@ def rewrite_query(user_query: str, domain: str) -> str:
     try:
         client = _get_groq_client()
         response = client.chat.completions.create(
-            model=get_settings().llm_model,
+            model=get_settings().fast_llm_model,
             messages=[
                 {"role": "system", "content": REWRITE_SYSTEM_PROMPT},
                 {"role": "user", "content": f"[법적 영역: {domain}]\n{user_query}"},
@@ -71,7 +71,7 @@ def generate_hyde_document(user_query: str, domain: str) -> str:
     try:
         client = _get_groq_client()
         response = client.chat.completions.create(
-            model=get_settings().llm_model,
+            model=get_settings().fast_llm_model,
             messages=[
                 {"role": "system", "content": HYDE_SYSTEM_PROMPT},
                 {"role": "user", "content": f"[법적 영역: {domain}]\n상황: {user_query}"},

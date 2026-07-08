@@ -16,11 +16,7 @@ transformers==4.49.0
 huggingface-hub==0.28.1
 torch==2.6.0
 
-# Eval (RAGAS + free judge/embeddings wrappers)
-ragas==0.2.14
-langchain-groq==0.2.4
-langchain-google-genai==2.0.10
-langchain-huggingface==0.1.2
+# Eval: 자체 LLM 저지 (eval/judge.py) — groq/google SDK 직접 사용, 추가 의존성 없음
 
 # API
 fastapi==0.115.11
