@@ -80,10 +80,31 @@ def _run_with_retry(query: str, max_retries: int = 2) -> tuple[dict, float]:
     return result, latency
 
 
-def run_cases(cases: list[dict], pause_s: float = 10.0) -> list[dict]:
-    """파이프라인 실행 + 루브릭. 저지 입력 rows 반환."""
-    rows = []
+CHECKPOINT_PATH = EVAL_DIR / "results-partial.json"
+
+
+def _load_checkpoint() -> list[dict]:
+    if CHECKPOINT_PATH.exists():
+        with open(CHECKPOINT_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def _save_checkpoint(rows: list[dict]) -> None:
+    with open(CHECKPOINT_PATH, "w", encoding="utf-8") as f:
+        json.dump(rows, f, ensure_ascii=False, indent=2)
+
+
+def run_cases(cases: list[dict], pause_s: float = 10.0, resume: bool = False) -> list[dict]:
+    """파이프라인 실행 + 루브릭. 케이스마다 체크포인트 저장 — 쿼터/중단 대비."""
+    rows = _load_checkpoint() if resume else []
+    done_ids = {r["case_id"] for r in rows}
+    if done_ids:
+        logger.info(f"체크포인트 재개: {len(done_ids)}케이스 완료됨")
+
     for i, case in enumerate(cases, 1):
+        if case["id"] in done_ids:
+            continue
         logger.info(f"[{i}/{len(cases)}] {case['query'][:40]}")
         result, latency = _run_with_retry(case["query"])
         if i < len(cases):
@@ -114,6 +135,9 @@ def run_cases(cases: list[dict], pause_s: float = 10.0) -> list[dict]:
                 result["final_answer"], contexts, case["domain"], result["domain"]
             ),
         })
+        _save_checkpoint(rows)
+
+    rows.sort(key=lambda r: r["case_id"])
     return rows
 
 
@@ -129,12 +153,13 @@ def main() -> None:
     parser.add_argument("--sample", type=int, default=None, help="케이스 수 제한")
     parser.add_argument("--judge", choices=["groq", "gemini"], default="gemini")
     parser.add_argument("--skip-judge", action="store_true", help="루브릭만 실행")
+    parser.add_argument("--resume", action="store_true", help="체크포인트에서 이어서")
     args = parser.parse_args()
 
     cases = load_testset(args.sample)
     logger.info(f"평가 시작: {len(cases)}케이스, judge={args.judge}")
 
-    rows = run_cases(cases)
+    rows = run_cases(cases, resume=args.resume)
 
     judge_result = None
     if not args.skip_judge:

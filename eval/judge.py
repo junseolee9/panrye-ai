@@ -77,11 +77,12 @@ def _call_groq(prompt: str) -> str:
 
     settings = get_settings()
     client = Groq(api_key=settings.groq_api_key)
+    # 저지 모델은 생성 모델과 분리 — 같은 모델이면 TPD 쿼터를 나눠 쓰다 둘 다 죽는다
     r = client.chat.completions.create(
-        model=settings.llm_model,
+        model=settings.judge_model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
-        max_tokens=300,
+        max_tokens=2000,
         response_format={"type": "json_object"},
     )
     return r.choices[0].message.content

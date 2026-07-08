@@ -27,4 +27,5 @@ artifacts/
 
 # Runtime
 logs/*.db
-eval/ragas_report.json
+eval/results.json
+eval/results-partial.json

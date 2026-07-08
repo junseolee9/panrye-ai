@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     llm_model: str = "llama-3.3-70b-versatile"
     # 재작성·분류 등 경량 태스크용 — 70b와 쿼터 분리 + 저지연
     fast_llm_model: str = "llama-3.1-8b-instant"
+    # 평가 저지용 — 생성(llm_model)과 쿼터 분리를 위해 별도 모델
+    judge_model: str = "openai/gpt-oss-120b"
     gemini_model: str = "gemini-2.5-flash"
 
     # --- 경로 (인덱스 산출물은 artifacts/ 아래) ---
