@@ -138,9 +138,10 @@ def format_context_for_llm(summaries: list[dict]) -> str:
     """LLM 프롬프트에 삽입할 판례 컨텍스트 포맷."""
     parts = []
     for i, s in enumerate(summaries, 1):
+        case_no = f" | 사건번호: {s['case_number']}" if s.get("case_number") else ""
         part = f"""[판례 {i}]
 사건명: {s['case_name']}
-법원: {s['court']} | 날짜: {s['date']} | 영역: {s['domain']}
+법원: {s['court']} | 선고일: {s['date']}{case_no} | 영역: {s['domain']}
 참조법조: {s['key_statutes']}
 요약: {s['summary']}"""
         if s["verdict_snippet"]:

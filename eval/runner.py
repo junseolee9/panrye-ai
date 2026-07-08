@@ -73,7 +73,8 @@ def run_cases(cases: list[dict]) -> list[dict]:
         latency = time.time() - start
 
         contexts = [
-            f"{s['case_name']} ({s['court']} {s['date']}) {s['summary']}"
+            f"{s['case_name']} ({s['court']} {s['date']} {s.get('case_number', '')}) "
+            f"{s['summary']}"
             for s in result["summaries"]
         ] or [""]
 
