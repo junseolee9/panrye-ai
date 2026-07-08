@@ -59,16 +59,35 @@ def rubric_checks(answer: str, contexts: list[str], expected_domain: str, domain
     }
 
 
-def run_cases(cases: list[dict]) -> list[dict]:
-    """파이프라인 실행 + 루브릭. RAGAS 입력 rows 반환."""
+_FALLBACK_MARKER = "일시적으로 사용할 수 없습니다"
+
+
+def _run_with_retry(query: str, max_retries: int = 2) -> tuple[dict, float]:
+    """LLM 쿼터 소진으로 폴백 답변이 나오면 대기 후 재시도.
+    폴백 문구를 채점하면 지표 전체가 무효가 되므로 eval에서는 필수 방어."""
     from panrye.graph.pipeline import run_pipeline
 
+    for attempt in range(max_retries + 1):
+        start = time.time()
+        result = run_pipeline(query)
+        latency = time.time() - start
+        if _FALLBACK_MARKER not in result["final_answer"]:
+            return result, latency
+        if attempt < max_retries:
+            wait = 90 * (attempt + 1)
+            logger.warning(f"생성 폴백 감지 (쿼터 추정) — {wait}s 대기 후 재시도")
+            time.sleep(wait)
+    return result, latency
+
+
+def run_cases(cases: list[dict], pause_s: float = 10.0) -> list[dict]:
+    """파이프라인 실행 + 루브릭. 저지 입력 rows 반환."""
     rows = []
     for i, case in enumerate(cases, 1):
         logger.info(f"[{i}/{len(cases)}] {case['query'][:40]}")
-        start = time.time()
-        result = run_pipeline(case["query"])
-        latency = time.time() - start
+        result, latency = _run_with_retry(case["query"])
+        if i < len(cases):
+            time.sleep(pause_s)  # 무료 티어 분당 쿼터 존중
 
         # 생성기가 실제로 본 컨텍스트([판례 N] 블록)를 그대로 평가에 사용 —
         # 요약만 넘기면 faithfulness가 실제보다 낮게 측정됨
