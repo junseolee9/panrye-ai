@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Data & index artifacts (rebuilt via scripts/, shipped via HF dataset repo)
+raw_data/
+chunked_data/
+chroma_db/
+artifacts/
+*.pkl
+
+# Runtime
+logs/*.db
+eval/ragas_report.json

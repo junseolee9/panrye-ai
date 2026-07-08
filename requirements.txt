@@ -1,0 +1,34 @@
+# Core RAG
+langgraph==0.2.70
+
+# Embeddings & Vector DB
+sentence-transformers==3.4.1
+chromadb==0.6.3
+rank-bm25==0.2.2
+kiwipiepy==0.23.2
+
+# LLM Providers (free tier)
+groq==0.13.1
+google-generativeai==0.8.4
+
+# HuggingFace
+transformers==4.49.0
+datasets==3.3.2
+huggingface-hub==0.28.1
+torch==2.6.0
+
+# Eval
+ragas==0.2.14
+
+# API & UI
+fastapi==0.115.11
+uvicorn==0.34.0
+gradio==5.20.1
+httpx==0.28.1
+sse-starlette==2.2.1
+
+# Data
+requests==2.32.3
+python-dotenv==1.0.1
+pydantic==2.10.6
+tqdm==4.67.1
