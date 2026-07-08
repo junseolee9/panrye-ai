@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     reranker_model: str = "Dongjin-kr/ko-reranker"
     summarizer_model: str = "digit82/kobart-summarization"
     llm_model: str = "llama-3.3-70b-versatile"
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
     # --- 경로 (인덱스 산출물은 artifacts/ 아래) ---
     raw_data_dir: Path = PROJECT_ROOT / "raw_data"

@@ -72,18 +72,21 @@ def run_cases(cases: list[dict]) -> list[dict]:
         result = run_pipeline(case["query"])
         latency = time.time() - start
 
-        contexts = [
-            f"{s['case_name']} ({s['court']} {s['date']} {s.get('case_number', '')}) "
-            f"{s['summary']}"
-            for s in result["summaries"]
-        ] or [""]
+        # 생성기가 실제로 본 컨텍스트([판례 N] 블록)를 그대로 평가에 사용 —
+        # 요약만 넘기면 faithfulness가 실제보다 낮게 측정됨
+        contexts = [b for b in result["context"].split("\n\n") if b.strip()] or [""]
+
+        # 고정 면책 보일러플레이트는 relevancy 측정을 희석하므로 제거
+        from panrye.agents.generator import DISCLAIMER
+
+        answer = result["final_answer"].replace(DISCLAIMER, "").strip()
 
         rows.append({
             "case_id": case["id"],
             "expected_domain": case["domain"],
             "category": case["category"],
             "user_input": case["query"],
-            "response": result["final_answer"],
+            "response": answer,
             "retrieved_contexts": contexts,
             "reference": case["ground_truth"],
             "pipeline_domain": result["domain"],
