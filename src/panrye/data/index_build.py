@@ -48,6 +48,7 @@ def load_chunks() -> list[dict]:
 def _chunk_metadata(c: dict, json_statutes: bool) -> dict:
     meta = {
         "case_id": c["case_id"],
+        "case_number": c.get("case_number", ""),
         "case_name": c["case_name"],
         "court": c["court"],
         "date": c["date"],

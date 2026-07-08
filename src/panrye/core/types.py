@@ -9,6 +9,7 @@ from typing import Any, TypedDict
 class RetrievedChunk:
     chunk_id: str
     case_id: str
+    case_number: str
     case_name: str
     court: str
     date: str

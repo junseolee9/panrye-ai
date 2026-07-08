@@ -118,6 +118,7 @@ def summarize_precedents(chunks: list[RetrievedChunk]) -> list[dict]:
 
         summaries.append({
             "case_id": chunk.case_id,
+            "case_number": chunk.case_number,
             "case_name": chunk.case_name,
             "court": chunk.court,
             "date": chunk.date,

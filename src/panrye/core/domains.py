@@ -32,10 +32,15 @@ LAW_TO_DOMAIN: list[tuple[str, str]] = [
     ("민사집행법", "민사"),
 ]
 
-# 민법은 편별로 갈림: 친족/상속 관련 문맥이면 가족법, 아니면 민사
+# 민법은 편별로 갈림: 친족/상속 문맥이면 가족법, 임대차/등기 문맥이면 부동산, 아니면 민사
 MINBEOP_FAMILY_HINTS = [
     "이혼", "혼인", "친권", "양육", "상속", "유류분", "유언",
     "재산분할", "위자료", "입양", "친생자", "사실혼",
+]
+
+MINBEOP_REALESTATE_HINTS = [
+    "임대차", "전세", "보증금", "명도", "임차인", "임대인",
+    "소유권이전등기", "분양", "유치권", "근저당",
 ]
 
 TEXT_KEYWORDS: dict[str, list[str]] = {
@@ -85,8 +90,12 @@ def score_domains(
             scores[domain] = scores.get(domain, 0) + WEIGHT_LAW
 
     if "민법" in joined_laws or "민법" in text:
-        is_family = any(h in text or h in joined_laws for h in MINBEOP_FAMILY_HINTS)
-        d = "가족법" if is_family else "민사"
+        if any(h in text or h in joined_laws for h in MINBEOP_FAMILY_HINTS):
+            d = "가족법"
+        elif any(h in text for h in MINBEOP_REALESTATE_HINTS):
+            d = "부동산"
+        else:
+            d = "민사"
         scores[d] = scores.get(d, 0) + WEIGHT_MINBEOP
 
     if case_type and case_type in CASE_TYPE_TO_DOMAIN:

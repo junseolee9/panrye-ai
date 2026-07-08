@@ -164,6 +164,7 @@ def _rerank(query: str, candidates: list[dict], top_k: int) -> list[RetrievedChu
         RetrievedChunk(
             chunk_id=c["chunk_id"],
             case_id=c.get("case_id", ""),
+            case_number=c.get("case_number", ""),
             case_name=c.get("case_name", ""),
             court=c.get("court", ""),
             date=c.get("date", ""),

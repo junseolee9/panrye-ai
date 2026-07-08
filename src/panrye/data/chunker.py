@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Chunk:
     chunk_id: str
     case_id: str
+    case_number: str
     case_name: str
     court: str
     date: str
@@ -104,6 +105,7 @@ def chunk_precedent(
         Chunk(
             chunk_id=f"{precedent['case_id']}_chunk{i:03d}",
             case_id=precedent["case_id"],
+            case_number=precedent.get("case_number", ""),
             case_name=precedent.get("case_name", ""),
             court=precedent.get("court", ""),
             date=precedent.get("date", ""),
