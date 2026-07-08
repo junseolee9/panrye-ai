@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="대한민국 판례 기반 법률 상담 AI — 상황을 설명하면 유사 판례를 검색해 근거와 함께 답변합니다.">
+  <title>판례.ai — 판례 기반 법률 상담 AI</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="wordmark" href="/">판례<span class="wordmark-tld">.ai</span></a>
+    <p class="tagline">대한민국 판례 기반 법률 상담 AI</p>
+  </div>
+  <ol class="stepper" id="stepper" hidden aria-label="분석 진행 단계">
+    <li data-stage="classify"><span class="dot" aria-hidden="true"></span><span class="stage-label">분류</span><span class="stage-ms"></span></li>
+    <li data-stage="reformulate"><span class="dot" aria-hidden="true"></span><span class="stage-label">재작성</span><span class="stage-ms"></span></li>
+    <li data-stage="retrieve"><span class="dot" aria-hidden="true"></span><span class="stage-label">검색</span><span class="stage-ms"></span></li>
+    <li data-stage="summarize"><span class="dot" aria-hidden="true"></span><span class="stage-label">요약</span><span class="stage-ms"></span></li>
+    <li data-stage="generate"><span class="dot" aria-hidden="true"></span><span class="stage-label">생성</span><span class="stage-ms"></span></li>
+  </ol>
+</header>
+
+<main class="chat-wrap">
+  <section class="chat" id="chat" aria-live="polite">
+    <div class="welcome" id="welcome">
+      <div class="welcome-mark" aria-hidden="true">&#9671;</div>
+      <h1>어떤 상황이신가요?</h1>
+      <p>
+        상황을 구체적으로 설명해 주시면, 실제 판례를 찾아
+        관련 법조문과 함께 정리해 드립니다.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="composer">
+  <div class="composer-inner">
+    <div class="chips" id="chips" role="group" aria-label="예시 질문">
+      <button class="chip" type="button">전세 계약이 끝났는데 집주인이 보증금을 안 돌려줘요</button>
+      <button class="chip" type="button">친구에게 500만원을 빌려줬는데 1년째 갚지 않아요</button>
+      <button class="chip" type="button">회사에서 갑자기 해고 통보를 받았어요</button>
+      <button class="chip" type="button">이혼하면서 아이 양육권을 갖고 싶어요</button>
+      <button class="chip" type="button">중고거래 사기를 당했어요</button>
+      <button class="chip" type="button">영업정지 처분이 부당하다고 생각해요</button>
+    </div>
+    <form class="input-row" id="form">
+      <textarea id="input" rows="1" maxlength="1000" required minlength="5"
+        placeholder="법률 상황을 설명해 주세요 (5자 이상)"
+        aria-label="법률 상황 입력"></textarea>
+      <button class="send-btn" id="send" type="submit" aria-label="질문 보내기">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 13V3M8 3L3.5 7.5M8 3l4.5 4.5" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </form>
+    <p class="site-disclaimer">
+      판례.ai의 답변은 법률 자문이 아닌 참고용 정보입니다. 실제 법적 판단은 변호사와 상담하세요.
+    </p>
+  </div>
+</footer>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
