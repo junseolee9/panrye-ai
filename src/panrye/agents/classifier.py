@@ -42,8 +42,9 @@ def _llm_classify(query: str) -> str:
     )
     try:
         client = Groq(api_key=settings.groq_api_key)
+        # 폴백은 호출당 수십 토큰뿐이라 판단력 좋은 70b 사용 (8b는 도메인 오판 잦음)
         response = client.chat.completions.create(
-            model=settings.fast_llm_model,
+            model=settings.llm_model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=10,
             temperature=0.0,

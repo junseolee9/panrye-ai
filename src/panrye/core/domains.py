@@ -51,12 +51,15 @@ TEXT_KEYWORDS: dict[str, list[str]] = {
                "매매계약", "분양", "소유권이전등기", "경매", "전세보증금",
                "월세", "집주인", "재개발", "재건축", "유치권", "근저당", "가등기"],
     "가족법": ["이혼", "위자료", "재산분할", "양육권", "친권", "상속",
-               "유류분", "혼인", "사실혼", "유언", "면접교섭", "양육비"],
+               "유류분", "혼인", "사실혼", "유언", "면접교섭", "양육비",
+               "증여", "유증", "친생자", "입양"],
     "형사": ["절도", "사기", "폭행", "상해", "살인", "강도", "횡령", "배임",
              "음주운전", "무면허", "마약", "성폭행", "협박", "명예훼손",
-             "피고인", "징역", "벌금", "기소", "약식명령", "보이스피싱"],
+             "피고인", "징역", "벌금", "기소", "약식명령", "보이스피싱",
+             "허위 사실", "고소", "잠적", "혈중알코올"],
     "행정": ["행정처분", "과세처분", "취소소송", "영업정지", "면허취소",
-             "과태료", "부과처분", "국가배상", "재심판정", "인허가"],
+             "과태료", "부과처분", "국가배상", "재심판정", "인허가",
+             "세금", "세무서", "정보공개", "비공개 결정", "행정기관", "행정심판"],
     # 주의: "보증"은 "보증금"(부동산)과 substring 충돌하므로 "연대보증/보증인"으로 한정
     "민사": ["손해배상", "대여금", "채무", "채권", "계약", "불법행위",
              "연대보증", "보증인", "양수금", "구상금", "부당이득", "차용증", "빌려"],
@@ -77,17 +80,24 @@ WEIGHT_CASE_TYPE = 2
 WEIGHT_TEXT_KEYWORD = 1
 
 
+def _normalize(s: str) -> str:
+    """공백 제거 — '면허 취소'/'면허취소' 표기 차이로 키워드 매칭이 깨지지 않게."""
+    return s.replace(" ", "")
+
+
 def score_domains(
     text: str,
     statutes: list[str] | None = None,
     case_type: str | None = None,
 ) -> dict[str, int]:
-    """도메인별 가중 점수 계산. 라벨링·질의 분류 공통 코어."""
-    joined_laws = " ".join(statutes) if statutes else ""
+    """도메인별 가중 점수 계산. 라벨링·질의 분류 공통 코어. 공백 무시 매칭."""
+    joined_laws = _normalize(" ".join(statutes)) if statutes else ""
+    text = _normalize(text)
     scores: dict[str, int] = {}
 
     for law, domain in LAW_TO_DOMAIN:
-        if law in joined_laws or law in text:
+        law_n = _normalize(law)
+        if law_n in joined_laws or law_n in text:
             scores[domain] = scores.get(domain, 0) + WEIGHT_LAW
 
     if "민법" in joined_laws or "민법" in text:
@@ -104,7 +114,7 @@ def score_domains(
         scores[d] = scores.get(d, 0) + WEIGHT_CASE_TYPE
 
     for domain, keywords in TEXT_KEYWORDS.items():
-        hits = sum(1 for kw in keywords if kw in text)
+        hits = sum(1 for kw in keywords if _normalize(kw) in text)
         if hits:
             scores[domain] = scores.get(domain, 0) + hits * WEIGHT_TEXT_KEYWORD
 
