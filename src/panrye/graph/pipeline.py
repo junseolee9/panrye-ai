@@ -24,7 +24,6 @@ from panrye.storage.db import log_query
 logger = logging.getLogger(__name__)
 
 RETRIEVAL_STAGES = ["classify", "reformulate", "retrieve", "summarize"]
-ALL_STAGES = [*RETRIEVAL_STAGES, "generate"]
 
 
 def _timed(stage: str, updates: dict, start: float) -> dict:

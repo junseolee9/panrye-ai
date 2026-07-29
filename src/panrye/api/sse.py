@@ -16,8 +16,6 @@ EVENT_ANSWER_CHUNK = "answer_chunk"
 EVENT_DONE = "done"
 EVENT_ERROR = "error"
 
-STAGES = ["classify", "reformulate", "retrieve", "summarize", "generate"]
-
 
 def _sse(event: str, data: dict) -> dict:
     return {"event": event, "data": json.dumps(data, ensure_ascii=False)}

@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
-from panrye.config import get_settings
+from panrye.config import get_device, get_settings
 from panrye.core.types import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -27,8 +28,8 @@ def _get_summarizer():
     from transformers import pipeline
 
     settings = get_settings()
-    logger.info(f"요약 모델 로딩: {settings.summarizer_model}")
-    return pipeline("summarization", model=settings.summarizer_model, device=-1)
+    logger.info(f"요약 모델 로딩: {settings.summarizer_model} ({get_device()})")
+    return pipeline("summarization", model=settings.summarizer_model, device=get_device())
 
 
 def _strip_metadata_header(text: str) -> str:
@@ -57,7 +58,9 @@ def _cut_at_sentence(text: str, limit: int) -> str:
 
 
 def summarize_chunk(text: str) -> str:
-    """kobart로 판례 요약."""
+    """kobart로 판례 요약.
+    배치 추론은 시도했으나 패딩 때문에 오히려 느리고(10.9s vs 8.5s/5건) 빔서치 결과가
+    달라져 건별 호출을 유지한다."""
     body = _strip_metadata_header(text)
     if len(body) < 200:
         return body or text[:300]
@@ -107,31 +110,47 @@ def summarize_precedents(chunks: list[RetrievedChunk]) -> list[dict]:
     """
     max_cases = get_settings().summarize_max_cases
     seen_cases: set[str] = set()
-    summaries = []
+    selected = []
 
     for chunk in chunks:
         if chunk.case_id in seen_cases:
             continue
-        if len(summaries) >= max_cases:
+        if len(selected) >= max_cases:
             break
         seen_cases.add(chunk.case_id)
+        selected.append(chunk)
 
-        summaries.append({
+    if not selected:
+        return []
+
+    # lru_cache는 락이 없어 워커들이 동시에 미스나면 모델을 중복 로딩한다 → 먼저 예열.
+    # 로딩 실패는 summarize_chunk의 원문 폴백이 처리하므로 여기서 삼킨다.
+    try:
+        _get_summarizer()
+    except Exception as e:
+        logger.warning(f"요약 모델 예열 실패: {e}")
+
+    # 판례별 요약은 서로 독립 — 스레드 병렬 (torch 추론은 GIL을 놓는다)
+    with ThreadPoolExecutor(max_workers=min(4, len(selected))) as pool:
+        summaries_text = list(pool.map(summarize_chunk, [c.text for c in selected]))
+
+    return [
+        {
             "case_id": chunk.case_id,
             "case_number": chunk.case_number,
             "case_name": chunk.case_name,
             "court": chunk.court,
             "date": chunk.date,
             "domain": chunk.domain,
-            "summary": summarize_chunk(chunk.text),
+            "summary": summary,
             "key_statutes": extract_key_statutes(chunk.statutes),
             "verdict_snippet": format_verdict_snippet(chunk.verdict),
             "full_text_snippet": _strip_metadata_header(chunk.text)[:600],
             "rerank_score": chunk.rerank_score,
             "source": chunk.source,
-        })
-
-    return summaries
+        }
+        for chunk, summary in zip(selected, summaries_text, strict=True)
+    ]
 
 
 def format_context_for_llm(summaries: list[dict]) -> str:

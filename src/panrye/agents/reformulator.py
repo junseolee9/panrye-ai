@@ -6,19 +6,11 @@ HyDE: 가상의 판례 요약문 생성 후 임베딩 → 검색 정확도 향�
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
-from panrye.config import get_settings
+from panrye.config import get_groq_client, get_settings
 
 logger = logging.getLogger(__name__)
-
-
-def _get_groq_client():
-    from groq import Groq
-
-    settings = get_settings()
-    if not settings.groq_api_key:
-        raise ValueError("GROQ_API_KEY 미설정. .env 확인하세요.")
-    return Groq(api_key=settings.groq_api_key)
 
 
 REWRITE_SYSTEM_PROMPT = """당신은 한국 법률 전문가입니다.
@@ -50,7 +42,7 @@ HYDE_SYSTEM_PROMPT = """당신은 한국 법원 판결문 전문가입니다.
 def rewrite_query(user_query: str, domain: str) -> str:
     """구어체 쿼리를 법률 용어 쿼리로 변환."""
     try:
-        client = _get_groq_client()
+        client = get_groq_client()
         response = client.chat.completions.create(
             model=get_settings().fast_llm_model,
             messages=[
@@ -69,7 +61,7 @@ def rewrite_query(user_query: str, domain: str) -> str:
 def generate_hyde_document(user_query: str, domain: str) -> str:
     """HyDE: 가상의 판례 요약문 생성."""
     try:
-        client = _get_groq_client()
+        client = get_groq_client()
         response = client.chat.completions.create(
             model=get_settings().fast_llm_model,
             messages=[
@@ -88,10 +80,14 @@ def generate_hyde_document(user_query: str, domain: str) -> str:
 def reformulate(user_query: str, domain: str) -> dict:
     """
     쿼리 재작성 + HyDE 문서 생성.
+    두 콜은 서로 독립이라 병렬 실행 — 직렬 대비 이 단계 레이턴시가 대략 절반.
     Returns: {rewritten_query, hyde_document, original_query}
     """
-    rewritten = rewrite_query(user_query, domain)
-    hyde_doc = generate_hyde_document(user_query, domain)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rewrite_task = pool.submit(rewrite_query, user_query, domain)
+        hyde_task = pool.submit(generate_hyde_document, user_query, domain)
+        rewritten = rewrite_task.result()
+        hyde_doc = hyde_task.result()
 
     logger.info(f"원본: {user_query[:50]}...")
     logger.info(f"재작성: {rewritten}")

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator
 
-from panrye.config import get_settings
+from panrye.config import get_groq_client, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,8 @@ SYSTEM_PROMPT = """당신은 한국 법률 전문 AI 어시스턴트입니다.
 
 
 def _generate_with_groq(user_query: str, context: str, stream: bool = False):
-    from groq import Groq
-
     settings = get_settings()
-    client = Groq(api_key=settings.groq_api_key)
+    client = get_groq_client()
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

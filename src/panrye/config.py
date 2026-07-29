@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     top_k_final: int = 5
     rrf_k: int = 60
 
+    # --- 추론 디바이스 ("" = 자동 감지, 또는 cpu/mps/cuda 강제) ---
+    device: str = ""
+
+    # --- API 보호 (공개 배포 대비) ---
+    # SPA는 API와 같은 오리진에서 서빙되므로 기본은 교차 출처 차단. 쉼표로 구분해 허용.
+    cors_origins: str = ""
+    # 미설정이면 /api/stats 비활성 (운영 통계에 타인의 질문이 섞여 있다)
+    stats_token: str = ""
+    # IP당 분당 요청 수. 0이면 해제. 무료 LLM 쿼터를 외부인이 태우는 것을 막는다.
+    rate_limit_per_min: int = 30
+
     # --- 분류기 ---
     classifier_confidence_threshold: float = 0.6
 
@@ -66,3 +77,29 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+@lru_cache(maxsize=1)
+def get_device() -> str:
+    """로컬 추론 디바이스. Mac은 mps, GPU 서버는 cuda, 배포(Spaces/Docker)는 cpu로 떨어진다."""
+    if get_settings().device:
+        return get_settings().device
+
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+@lru_cache(maxsize=1)
+def get_groq_client():
+    """Groq 클라이언트 단일 인스턴스 — 호출마다 새로 만들면 TLS 핸드셰이크가 반복된다."""
+    from groq import Groq
+
+    settings = get_settings()
+    if not settings.groq_api_key:
+        raise ValueError("GROQ_API_KEY 미설정. .env 확인하세요.")
+    return Groq(api_key=settings.groq_api_key)

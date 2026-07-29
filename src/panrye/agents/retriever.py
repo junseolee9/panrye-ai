@@ -5,12 +5,13 @@ Top-20 후보 → Rerank → Top-5 최종.
 """
 from __future__ import annotations
 
+import heapq
 import json
 import logging
 import pickle
 from functools import lru_cache
 
-from panrye.config import get_settings
+from panrye.config import get_device, get_settings
 from panrye.core.types import RetrievedChunk
 from panrye.data.tokenizer import tokenize
 
@@ -22,8 +23,8 @@ def _get_embedding_model():
     from sentence_transformers import SentenceTransformer
 
     settings = get_settings()
-    logger.info(f"임베딩 모델 로딩: {settings.embedding_model}")
-    return SentenceTransformer(settings.embedding_model)
+    logger.info(f"임베딩 모델 로딩: {settings.embedding_model} ({get_device()})")
+    return SentenceTransformer(settings.embedding_model, device=get_device())
 
 
 @lru_cache(maxsize=1)
@@ -31,8 +32,8 @@ def _get_reranker():
     from sentence_transformers import CrossEncoder
 
     settings = get_settings()
-    logger.info(f"Reranker 로딩: {settings.reranker_model}")
-    return CrossEncoder(settings.reranker_model, max_length=512)
+    logger.info(f"Reranker 로딩: {settings.reranker_model} ({get_device()})")
+    return CrossEncoder(settings.reranker_model, max_length=512, device=get_device())
 
 
 @lru_cache(maxsize=1)
@@ -95,7 +96,8 @@ def _bm25_search(query_text: str, top_k: int) -> list[dict]:
     tokenized_query = tokenize(query_text)  # 인덱싱과 동일한 형태소 토큰화
     scores = bm25.get_scores(tokenized_query)
 
-    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+    # 전체 코퍼스(수만 청크) 정렬 대신 top-k만 — O(n log k)
+    top_indices = heapq.nlargest(top_k, range(len(scores)), key=scores.__getitem__)
 
     chunks = []
     for rank, idx in enumerate(top_indices):

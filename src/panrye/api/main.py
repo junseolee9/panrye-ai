@@ -10,12 +10,14 @@ FastAPI 백엔드.
 from __future__ import annotations
 
 import logging
+import secrets
 import time
+from collections import defaultdict, deque
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +26,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 from panrye.api import sse
 from panrye.api.schemas import FeedbackRequest, QueryRequest, QueryResponse
+from panrye.config import get_settings
 from panrye.storage.db import (
     get_eval_stats,
     get_query_stats,
@@ -48,8 +51,6 @@ async def lifespan(app: FastAPI):
 
 def _ensure_artifacts() -> None:
     """인덱스 아티팩트 확인. 없으면 HF Dataset에서 부트스트랩 (배포 환경)."""
-    from panrye.config import get_settings
-
     settings = get_settings()
     if settings.chroma_dir.exists() and settings.bm25_path.exists():
         logger.info("인덱스 아티팩트 확인됨.")
@@ -72,12 +73,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# SPA는 이 서버가 직접 서빙하므로 교차 출처는 기본 차단. CORS_ORIGINS로만 연다.
+_cors_origins = [o.strip() for o in get_settings().cors_origins.split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# IP별 최근 요청 시각. 단일 프로세스 인메모리 — 데모 규모에 맞춘 최소 구현.
+_recent_hits: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _rate_limit(request: Request) -> None:
+    """IP당 분당 요청 수 제한. 초과 시 429."""
+    limit = get_settings().rate_limit_per_min
+    if limit <= 0:
+        return
+
+    now = time.time()
+    ip = request.client.host if request.client else "unknown"
+    hits = _recent_hits[ip]
+    while hits and now - hits[0] > 60:
+        hits.popleft()
+    if len(hits) >= limit:
+        raise HTTPException(
+            status_code=429, detail="요청이 너무 잦습니다. 잠시 후 다시 시도해주세요."
+        )
+    hits.append(now)
 
 
 @app.get("/api/health")
@@ -86,8 +111,10 @@ def health():
 
 
 @app.post("/api/query", response_model=QueryResponse)
-def query(req: QueryRequest):
+def query(req: QueryRequest, request: Request):
     from panrye.graph.pipeline import run_pipeline
+
+    _rate_limit(request)
 
     start = time.time()
     result = run_pipeline(req.query)
@@ -123,8 +150,9 @@ def _retrieval_events(user_query: str) -> Generator[tuple[str, object], None, No
 
 
 @app.get("/api/stream")
-async def stream(query: str):
+async def stream(query: str, request: Request):
     """SSE: 스테이지 진행 → 도메인/근거 카드 → 답변 토큰 스트림."""
+    _rate_limit(request)
     if not 5 <= len(query) <= 1000:
         raise HTTPException(status_code=400, detail="질문은 5자 이상 1000자 이하여야 합니다.")
 
@@ -184,13 +212,21 @@ async def stream(query: str):
 
 
 @app.post("/api/feedback")
-def feedback(req: FeedbackRequest):
+def feedback(req: FeedbackRequest, request: Request):
+    _rate_limit(request)
+    # update_feedback은 아직 피드백이 없는 행만 갱신 — 남의 평가를 뒤집을 수 없다
     update_feedback(req.query_id, req.helpful)
     return {"status": "ok"}
 
 
 @app.get("/api/stats")
-def stats():
+def stats(request: Request, token: str = ""):
+    """운영 통계. 최근 질문이 섞여 있으므로 STATS_TOKEN 없이는 존재를 노출하지 않는다."""
+    _rate_limit(request)
+    expected = get_settings().stats_token
+    if not expected or not secrets.compare_digest(token, expected):
+        raise HTTPException(status_code=404, detail="Not Found")
+
     recent = get_recent_queries(limit=5)
     return {
         "query_stats": get_query_stats(),

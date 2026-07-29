@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+from collections import Counter
+
 DOMAINS = ["형사", "민사", "가족법", "행정", "노동", "부동산"]
 FALLBACK_DOMAIN = "기타"
 
@@ -85,6 +87,11 @@ def _normalize(s: str) -> str:
     return s.replace(" ", "")
 
 
+# 렉시콘은 불변 — 호출마다 재정규화하지 않고 임포트 시점에 한 번만 계산한다.
+_LAW_TO_DOMAIN_N = [(_normalize(law), domain) for law, domain in LAW_TO_DOMAIN]
+_TEXT_KEYWORDS_N = {d: [_normalize(kw) for kw in kws] for d, kws in TEXT_KEYWORDS.items()}
+
+
 def score_domains(
     text: str,
     statutes: list[str] | None = None,
@@ -93,12 +100,11 @@ def score_domains(
     """도메인별 가중 점수 계산. 라벨링·질의 분류 공통 코어. 공백 무시 매칭."""
     joined_laws = _normalize(" ".join(statutes)) if statutes else ""
     text = _normalize(text)
-    scores: dict[str, int] = {}
+    scores: Counter[str] = Counter()
 
-    for law, domain in LAW_TO_DOMAIN:
-        law_n = _normalize(law)
+    for law_n, domain in _LAW_TO_DOMAIN_N:
         if law_n in joined_laws or law_n in text:
-            scores[domain] = scores.get(domain, 0) + WEIGHT_LAW
+            scores[domain] += WEIGHT_LAW
 
     if "민법" in joined_laws or "민법" in text:
         if any(h in text or h in joined_laws for h in MINBEOP_FAMILY_HINTS):
@@ -107,18 +113,17 @@ def score_domains(
             d = "부동산"
         else:
             d = "민사"
-        scores[d] = scores.get(d, 0) + WEIGHT_MINBEOP
+        scores[d] += WEIGHT_MINBEOP
 
     if case_type and case_type in CASE_TYPE_TO_DOMAIN:
-        d = CASE_TYPE_TO_DOMAIN[case_type]
-        scores[d] = scores.get(d, 0) + WEIGHT_CASE_TYPE
+        scores[CASE_TYPE_TO_DOMAIN[case_type]] += WEIGHT_CASE_TYPE
 
-    for domain, keywords in TEXT_KEYWORDS.items():
-        hits = sum(1 for kw in keywords if _normalize(kw) in text)
+    for domain, keywords in _TEXT_KEYWORDS_N.items():
+        hits = sum(1 for kw in keywords if kw in text)
         if hits:
-            scores[domain] = scores.get(domain, 0) + hits * WEIGHT_TEXT_KEYWORD
+            scores[domain] += hits * WEIGHT_TEXT_KEYWORD
 
-    return scores
+    return dict(scores)
 
 
 def classify_precedent(

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from panrye.config import get_settings
+from panrye.config import get_groq_client, get_settings
 from panrye.core.domains import DOMAINS, FALLBACK_DOMAIN, score_domains
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,6 @@ def _keyword_classify(query: str) -> tuple[str, float]:
 
 def _llm_classify(query: str) -> str:
     """Groq 제약 출력 분류. 실패/비정상 출력 시 기타."""
-    from groq import Groq
-
     settings = get_settings()
     if not settings.groq_api_key:
         return FALLBACK_DOMAIN
@@ -41,7 +39,7 @@ def _llm_classify(query: str) -> str:
         f"질문: {query}"
     )
     try:
-        client = Groq(api_key=settings.groq_api_key)
+        client = get_groq_client()
         # 폴백은 호출당 수십 토큰뿐이라 판단력 좋은 70b 사용 (8b는 도메인 오판 잦음)
         response = client.chat.completions.create(
             model=settings.llm_model,

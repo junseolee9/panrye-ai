@@ -143,3 +143,43 @@ def test_feedback_endpoint():
 
 def test_health():
     assert client.get("/api/health").json()["status"] == "ok"
+
+
+def test_stats_hidden_without_token():
+    # STATS_TOKEN 미설정이 기본 — 존재 자체를 노출하지 않도록 404
+    assert client.get("/api/stats").status_code == 404
+    assert client.get("/api/stats", params={"token": "guess"}).status_code == 404
+
+
+def test_stats_open_with_token(monkeypatch):
+    from panrye.config import get_settings
+
+    monkeypatch.setenv("STATS_TOKEN", "s3cret")
+    get_settings.cache_clear()
+    try:
+        with (
+            patch("panrye.api.main.get_recent_queries", return_value=[]),
+            patch("panrye.api.main.get_query_stats", return_value={}),
+            patch("panrye.api.main.get_eval_stats", return_value={}),
+        ):
+            assert client.get("/api/stats", params={"token": "wrong"}).status_code == 404
+            r = client.get("/api/stats", params={"token": "s3cret"})
+        assert r.status_code == 200
+        assert set(r.json()) == {"query_stats", "eval_stats", "recent_queries"}
+    finally:
+        get_settings.cache_clear()
+
+
+def test_rate_limit_returns_429(monkeypatch):
+    from panrye.api.main import _recent_hits
+    from panrye.config import get_settings
+
+    monkeypatch.setenv("RATE_LIMIT_PER_MIN", "2")
+    get_settings.cache_clear()
+    _recent_hits.clear()
+    try:
+        codes = [client.get("/api/stream", params={"query": "짧다"}).status_code for _ in range(3)]
+        assert codes == [400, 400, 429]  # 검증 이전에 레이트리밋이 걸린다
+    finally:
+        get_settings.cache_clear()
+        _recent_hits.clear()

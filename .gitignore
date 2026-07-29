@@ -27,5 +27,5 @@ artifacts/
 
 # Runtime
 logs/*.db
-eval/results.json
 eval/results-partial.json
+# eval/results.json 은 의도적으로 추적 — README 지표 표의 출처

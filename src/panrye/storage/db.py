@@ -112,9 +112,10 @@ def log_eval(
 
 
 def update_feedback(query_id: int, helpful: bool) -> None:
+    """1회성 — 이미 피드백이 있는 행은 갱신하지 않는다 (무인증 엔드포인트라 조작 방지)."""
     with get_conn() as conn:
         conn.execute(
-            "UPDATE queries SET feedback = ? WHERE id = ?",
+            "UPDATE queries SET feedback = ? WHERE id = ? AND feedback IS NULL",
             (1 if helpful else 0, query_id),
         )
 
