@@ -1,14 +1,3 @@
----
-title: 판례.ai
-emoji: ⚖️
-colorFrom: blue
-colorTo: yellow
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
----
-
 # 판례.ai
 
 **"전세금을 못 돌려받고 있어요"라고 물으면, 실제 대법원 판례를 찾아 사건번호와 법조문을 근거로 답하는 법률 상담 RAG 서비스입니다.**
