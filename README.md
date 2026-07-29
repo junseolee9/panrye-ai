@@ -48,7 +48,7 @@ UI는 이 다섯 단계를 실시간 스테퍼로 보여줍니다. 사용자가 
 
 **레이턴시는 재고 나서 잘랐습니다.** 단계별로 시간을 재보니 로컬 연산의 대부분이 요약인데 판례 5건을 한 건씩 순차로 돌리고 있었습니다. 요약도, 재작성+HyDE 두 LLM 콜도 서로 독립이라 병렬로 바꿔 로컬 경로를 8.36s → 6.37s로 줄였습니다(출력 동일 확인). 반면 KoBART 배치 추론은 시도했다가 되돌렸습니다 — 패딩 때문에 오히려 느렸고(10.9s vs 8.5s) 빔서치 결과까지 달라졌습니다.
 
-**인덱스와 코드의 배포 분리.** HF Spaces 무료 티어(2vCPU)에서 7.6만 청크를 재임베딩하면 30분 넘게 걸립니다. 프리빌드 인덱스를 HF Dataset에 올리고 컨테이너 시작 시 내려받아(sha256 검증) 콜드스타트를 분 단위로 줄였습니다. 인덱스 갱신이 코드 배포와 독립적이라는 부수 효과도 있습니다.
+**인덱스와 코드의 배포 분리.** HF Spaces 무료 티어(2vCPU)에서 7.6만 청크를 재임베딩하면 30분 넘게 걸립니다. 그래서 프리빌드 인덱스를 HF Dataset에 올려두고 컨테이너가 시작할 때 내려받아 sha256으로 검증하도록 구성했습니다(`storage/artifacts.py`). 인덱스 갱신이 코드 배포와 독립적이라는 부수 효과도 있습니다. 다만 상시 배포한 인스턴스가 아직 없어서 콜드스타트가 실제로 얼마나 줄었는지는 측정하지 못했습니다 — 현재 검증된 실행 환경은 로컬과 Docker입니다.
 
 **무료 스택은 그 자체가 설계 제약이었습니다.** 한 모델의 쿼터가 마르면 서비스 전체가 멈추므로 태스크별로 모델을 갈라 놨습니다 — 생성 70b, 재작성·분류 8b, 평가 저지 gpt-oss. Groq이 죽으면 Gemini로 넘어가는 폴백 체인도 같은 이유입니다.
 
@@ -119,7 +119,7 @@ Docker / HF Spaces:
 docker build -t panrye . && docker run -p 7860:7860 --env-file .env panrye
 ```
 
-Spaces에는 Docker SDK로 푸시하고 `GROQ_API_KEY`, `GOOGLE_API_KEY`, `INDEX_REPO_ID`를 secrets로 넣으면, 시작 시 인덱스를 HF Dataset에서 자동으로 내려받습니다(`scripts/upload_index.py`로 업로드).
+HF Spaces에 올릴 경우: Docker SDK로 푸시하고 `GROQ_API_KEY`, `GOOGLE_API_KEY`, `INDEX_REPO_ID`를 secrets로 넣으면 시작 시 인덱스를 HF Dataset에서 자동으로 내려받습니다(업로드는 `scripts/upload_index.py`). Spaces는 README 최상단의 YAML front matter(`sdk: docker`, `app_port: 7860` 등)로 Space를 구성하므로, 배포 시점에 그 블록을 다시 넣어야 합니다.
 
 ## 구조
 
